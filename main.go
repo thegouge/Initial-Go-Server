@@ -10,6 +10,8 @@ func main() {
 	const PORT string = "8000"
 	mux := http.NewServeMux()
 
+	mux.Handle("/", http.FileServer(http.Dir("./pages")))
+
 	corsMux := middlewareCors(mux)
 
 	server := http.Server{
