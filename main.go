@@ -10,7 +10,8 @@ func main() {
 	const PORT string = "8000"
 	mux := http.NewServeMux()
 
-	mux.Handle("/", http.FileServer(http.Dir("./pages")))
+	mux.Handle("/app/", http.StripPrefix("/app/", http.FileServer(http.Dir("./pages"))))
+	mux.HandleFunc("/healthz", handler)
 
 	corsMux := middlewareCors(mux)
 
@@ -26,6 +27,13 @@ func main() {
 		log.Fatal(err)
 	}
 
+}
+
+func handler(w http.ResponseWriter, Request *http.Request) {
+	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(200)
+
+	w.Write([]byte("OK"))
 }
 
 func middlewareCors(next http.Handler) http.Handler {
