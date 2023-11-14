@@ -9,9 +9,12 @@ import (
 func main() {
 	const PORT string = "8000"
 	mux := http.NewServeMux()
+	apiCfg := apiConfig{}
 
-	mux.Handle("/app/", http.StripPrefix("/app/", http.FileServer(http.Dir("./pages"))))
-	mux.HandleFunc("/healthz", handler)
+	mux.Handle("/app/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir("./pages")))))
+	mux.HandleFunc("/healthz", healthHandler)
+	mux.Handle("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
+	mux.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
 
 	corsMux := middlewareCors(mux)
 
@@ -29,7 +32,7 @@ func main() {
 
 }
 
-func handler(w http.ResponseWriter, Request *http.Request) {
+func healthHandler(w http.ResponseWriter, Request *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
 
