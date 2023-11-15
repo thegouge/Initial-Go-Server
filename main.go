@@ -13,12 +13,16 @@ func main() {
 	// mux := http.NewServeMux()
 	apiCfg := apiConfig{}
 	r := chi.NewRouter()
+	api := chi.NewRouter()
 
 	r.Handle("/app", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./pages")))))
 	r.Handle("/app/*", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir("./pages")))))
-	r.Get("/healthz", healthHandler)
-	r.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
-	r.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
+
+	api.Get("/healthz", healthHandler)
+	api.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
+	api.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
+
+	r.Mount("/api", api)
 
 	corsMux := middlewareCors(r)
 
