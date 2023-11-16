@@ -10,10 +10,10 @@ type apiConfig struct {
 }
 
 func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, Request *http.Request) {
-	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Add("Content-Type", "text/html")
 	w.WriteHeader(200)
 
-	w.Write([]byte(fmt.Sprintf("Hits: %v", cfg.fileserverHits)))
+	w.Write([]byte(fmt.Sprintf("<html><body><h1>Welcome, Chirpy Admin</h1><p>Chirpy has been visited %d times!</p></body></html>", cfg.fileserverHits)))
 }
 
 func (cfg *apiConfig) resetHandler(w http.ResponseWriter, Request *http.Request) {
