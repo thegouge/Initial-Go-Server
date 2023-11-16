@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -56,21 +57,18 @@ func chirpValidationHandler(w http.ResponseWriter, r *http.Request) {
 	type validationParams struct {
 		Body string `json:"body"`
 	}
+	type validResponse struct {
+		CleanedBody string `json:"cleaned_body"`
+	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := validationParams{}
+
 	err := decoder.Decode(&params)
 	if err != nil {
 		log.Printf("Error decoding Chirp: %v", err)
 		w.WriteHeader(500)
 		return
-	}
-
-	type errResponse struct {
-		Error string `json:"error"`
-	}
-	type validResponse struct {
-		Valid bool `json:"valid"`
 	}
 
 	if len(params.Body) > 140 {
@@ -79,10 +77,31 @@ func chirpValidationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respBody := validResponse{
-		Valid: true,
+		CleanedBody: cleanString(params.Body),
 	}
 
 	respondWithJson(w, 200, respBody)
+}
+
+func cleanString(input string) string {
+	CURSE_WORDS := [4]string{
+		"kerfuffle",
+		"sharbert",
+		"fornax",
+		"fuck",
+	}
+
+	words := strings.Split(input, " ")
+
+	for i, word := range words {
+		for _, curse := range CURSE_WORDS {
+			if curse == strings.ToLower(word) {
+				words[i] = "****"
+			}
+		}
+	}
+
+	return strings.Join(words, " ")
 }
 
 func middlewareCors(next http.Handler) http.Handler {
