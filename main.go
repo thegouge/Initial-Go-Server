@@ -74,19 +74,7 @@ func chirpValidationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(params.Body) > 140 {
-		errorResponse := errResponse{
-			Error: "Chirp is too long",
-		}
-		dat, err := json.Marshal(errorResponse)
-
-		if err != nil {
-			log.Printf("Error marshalling JSON: %s", err)
-			w.WriteHeader(500)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(400)
-		w.Write(dat)
+		respondWithError(w, 400, "Chirp is too long")
 		return
 	}
 
@@ -94,16 +82,7 @@ func chirpValidationHandler(w http.ResponseWriter, r *http.Request) {
 		Valid: true,
 	}
 
-	dat, err := json.Marshal(respBody)
-	if err != nil {
-		log.Printf("Error marshalling JSON: %s", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	w.Write(dat)
+	respondWithJson(w, 200, respBody)
 }
 
 func middlewareCors(next http.Handler) http.Handler {
