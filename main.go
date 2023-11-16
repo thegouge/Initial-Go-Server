@@ -14,15 +14,18 @@ func main() {
 	apiCfg := apiConfig{}
 	r := chi.NewRouter()
 	api := chi.NewRouter()
+	admin := chi.NewRouter()
 
 	r.Handle("/app", apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir("./pages")))))
 	r.Handle("/app/*", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/", http.FileServer(http.Dir("./pages")))))
 
 	api.Get("/healthz", healthHandler)
-	api.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 	api.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
 
+	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
+
 	r.Mount("/api", api)
+	r.Mount("/admin", admin)
 
 	corsMux := middlewareCors(r)
 
