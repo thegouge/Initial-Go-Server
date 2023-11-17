@@ -23,7 +23,8 @@ func main() {
 
 	api.Get("/healthz", healthHandler)
 	api.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
-	api.Post("/validate_chirp", chirpValidationHandler)
+	api.Post("/chirps", chirpValidationHandler)
+	api.Get("/chirps", getAllChirps)
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 
