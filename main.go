@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,8 +11,16 @@ import (
 
 func main() {
 	const PORT string = "8000"
-	// mux := http.NewServeMux()
-	apiCfg := apiConfig{}
+
+	db, dbErr := database.NewDB("database.json")
+	if dbErr != nil {
+		log.Fatal(dbErr)
+	}
+
+	apiCfg := apiConfig{
+		db: db,
+	}
+
 	r := chi.NewRouter()
 	api := chi.NewRouter()
 	admin := chi.NewRouter()
@@ -23,8 +30,8 @@ func main() {
 
 	api.Get("/healthz", healthHandler)
 	api.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
-	api.Post("/chirps", chirpValidationHandler)
-	api.Get("/chirps", getAllChirps)
+	api.Post("/chirps", http.HandlerFunc(apiCfg.chirpValidationHandler))
+	api.Get("/chirps", http.HandlerFunc(apiCfg.getAllChirps))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 
