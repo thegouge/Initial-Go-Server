@@ -71,9 +71,20 @@ func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Requ
 
 	respBody := createdChirp
 
-	respondWithJson(w, 200, respBody)
+	respondWithJson(w, 201, respBody)
 }
 
 func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
+	chirps, err := cfg.db.GetChirps()
+	if err != nil {
+		log.Printf("Error reading the database: %v", err)
+		w.WriteHeader(500)
+		return
+	}
 
+	sort.Slice(chirps, func(i, j int) bool {
+		return chirps[i].Id < chirps[j].Id
+	})
+
+	respondWithJson(w, 200, chirps)
 }
