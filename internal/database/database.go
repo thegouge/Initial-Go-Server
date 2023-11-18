@@ -76,13 +76,13 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 		return []Chirp{}, err
 	}
 
-	sortedChirps := []Chirp{}
+	chirpSlice := []Chirp{}
 
 	for _, chirp := range currentStructure.Chirps {
-		sortedChirps = append(sortedChirps, chirp)
+		chirpSlice = append(chirpSlice, chirp)
 	}
 
-	return sortedChirps, nil
+	return chirpSlice, nil
 }
 
 // ensureDB creates a new database file if it doesn't exist
