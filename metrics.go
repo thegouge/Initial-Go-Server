@@ -1,12 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+
+	"github.com/thegouge/Initial-Go-Server/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits int
+	db             *database.DB
 }
 
 func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, Request *http.Request) {
@@ -31,4 +36,44 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Request) {
+	type validationParams struct {
+		Body string `json:"body"`
+	}
+	type validResponse struct {
+		Id   int    `json:"id"`
+		Body string `json:"body"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := validationParams{}
+
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding Chirp: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	if len(params.Body) > 140 {
+		respondWithError(w, 400, "Chirp is too long")
+		return
+	}
+
+	createdChirp, err := cfg.db.CreateChirp(cleanString(params.Body))
+	if err != nil {
+		log.Printf("Error saving Chirp to database: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	respBody := createdChirp
+
+	respondWithJson(w, 200, respBody)
+}
+
+func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
+
 }

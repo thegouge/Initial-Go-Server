@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/thegouge/Initial-Go-Server/internal/database"
 )
 
 func main() {
@@ -59,36 +60,6 @@ func healthHandler(w http.ResponseWriter, Request *http.Request) {
 	w.WriteHeader(200)
 
 	w.Write([]byte("OK"))
-}
-
-func chirpValidationHandler(w http.ResponseWriter, r *http.Request) {
-	type validationParams struct {
-		Body string `json:"body"`
-	}
-	type validResponse struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	params := validationParams{}
-
-	err := decoder.Decode(&params)
-	if err != nil {
-		log.Printf("Error decoding Chirp: %v", err)
-		w.WriteHeader(500)
-		return
-	}
-
-	if len(params.Body) > 140 {
-		respondWithError(w, 400, "Chirp is too long")
-		return
-	}
-
-	respBody := validResponse{
-		CleanedBody: cleanString(params.Body),
-	}
-
-	respondWithJson(w, 200, respBody)
 }
 
 func cleanString(input string) string {
