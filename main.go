@@ -1,19 +1,33 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/thegouge/Initial-Go-Server/internal/database"
 )
 
-func main() {
-	const PORT string = "8000"
+const PORT string = "8000"
+const DATABASE_PATH string = "database.json"
 
-	db, dbErr := database.NewDB("database.json")
+func main() {
+	debug := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
+	if *debug {
+		fmt.Println("Starting server in debug mode")
+		error := os.Remove(DATABASE_PATH)
+		if error != nil {
+			fmt.Printf("could not delete file: %s", DATABASE_PATH)
+		}
+	}
+
+	db, dbErr := database.NewDB(DATABASE_PATH)
 	if dbErr != nil {
 		log.Fatal(dbErr)
 	}
