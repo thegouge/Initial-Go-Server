@@ -24,22 +24,14 @@ type Chirp struct {
 // NewDB creates a new database connection
 // and creates the database file if it doesn't exist
 func NewDB(path string) (*DB, error) {
-	dbContents := DBStructure{
-		Chirps: map[int]Chirp{},
-	}
-	dat, err := json.Marshal(dbContents)
-	if err != nil {
-		return &DB{}, err
-	}
-
-	writeErr := os.WriteFile(path, dat, 0666)
-	if writeErr != nil {
-		return &DB{}, writeErr
-	}
-
 	database := DB{
 		path: path,
 		mux:  &sync.RWMutex{},
+	}
+
+	_, err := os.ReadFile(path)
+	if err != nil {
+		err = database.ensureDB(path)
 	}
 
 	return &database, err
@@ -86,7 +78,22 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 }
 
 // ensureDB creates a new database file if it doesn't exist
-// func (db *DB) ensureDB() error
+func (db *DB) ensureDB(path string) error {
+	dbContents := DBStructure{
+		Chirps: map[int]Chirp{},
+	}
+	dat, err := json.Marshal(dbContents)
+	if err != nil {
+		return err
+	}
+
+	writeErr := os.WriteFile(path, dat, 0666)
+	if writeErr != nil {
+		return writeErr
+	}
+
+	return nil
+}
 
 // loadDB reads the database file into memory
 func (db *DB) loadDB() (DBStructure, error) {
