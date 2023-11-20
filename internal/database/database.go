@@ -7,18 +7,25 @@ import (
 )
 
 type DB struct {
-	path   string
-	lastID int
-	mux    *sync.RWMutex
+	path      string
+	lastChirp int
+	lastUser  int
+	mux       *sync.RWMutex
 }
 
 type DBStructure struct {
 	Chirps map[int]Chirp `json:"chirps"`
+	Users  map[int]User  `json:"users"`
 }
 
 type Chirp struct {
 	Id   int    `json:"id"`
 	Body string `json:"body"`
+}
+
+type User struct {
+	Id    int    `json:"id"`
+	Email string `json:"email"`
 }
 
 // NewDB creates a new database connection
@@ -44,7 +51,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		return Chirp{}, err
 	}
 
-	nextId := db.lastID + 1
+	nextId := db.lastChirp + 1
 
 	newChirp := Chirp{
 		Id:   nextId,
@@ -57,8 +64,32 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 		return Chirp{}, err
 	}
 
-	db.lastID = nextId
+	db.lastChirp = nextId
 	return newChirp, nil
+}
+
+// CreateChirp creates a new chirp and saves it to disk
+func (db *DB) CreateUser(email string) (User, error) {
+	currentStructure, err := db.loadDB()
+	if err != nil {
+		return User{}, err
+	}
+
+	nextId := db.lastUser + 1
+
+	newUser := User{
+		Id:    nextId,
+		Email: email,
+	}
+
+	currentStructure.Users[nextId] = newUser
+	err = db.writeDB(currentStructure)
+	if err != nil {
+		return User{}, err
+	}
+
+	db.lastUser = nextId
+	return newUser, nil
 }
 
 // GetChirps returns all chirps in the database
@@ -81,6 +112,7 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 func (db *DB) ensureDB(path string) error {
 	dbContents := DBStructure{
 		Chirps: map[int]Chirp{},
+		Users:  map[int]User{},
 	}
 	dat, err := json.Marshal(dbContents)
 	if err != nil {
