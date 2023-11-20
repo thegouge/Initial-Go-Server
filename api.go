@@ -6,7 +6,9 @@ import (
 	"log"
 	"net/http"
 	"sort"
+	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/thegouge/Initial-Go-Server/internal/database"
 )
 
@@ -88,4 +90,30 @@ func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 	})
 
 	respondWithJson(w, 200, chirps)
+}
+
+func (cfg *apiConfig) getChirpByID(w http.ResponseWriter, r *http.Request) {
+	param := chi.URLParam(r, "chirpId")
+	chirpID, err := strconv.Atoi(param)
+	if err != nil {
+		log.Printf("Error parsing parameter: %v", err)
+		respondWithError(w, 400, "invalid chirp ID")
+		return
+	}
+
+	allChirps, err := cfg.db.GetChirps()
+	if err != nil {
+		log.Printf("Error reading the database: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	for _, chirp := range allChirps {
+		if chirp.Id == chirpID {
+			respondWithJson(w, 200, chirp)
+			return
+		}
+	}
+
+	respondWithError(w, 404, fmt.Sprintf("Unable to find chirp with ID: %s", param))
 }

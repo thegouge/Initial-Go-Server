@@ -33,6 +33,7 @@ func main() {
 	api.Handle("/reset", http.HandlerFunc(apiCfg.resetHandler))
 	api.Post("/chirps", http.HandlerFunc(apiCfg.chirpValidationHandler))
 	api.Get("/chirps", http.HandlerFunc(apiCfg.getAllChirps))
+	api.Get("/chirps/{chirpId}", http.HandlerFunc(apiCfg.getChirpByID))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 
