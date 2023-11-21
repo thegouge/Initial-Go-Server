@@ -49,6 +49,7 @@ func main() {
 	api.Get("/chirps", http.HandlerFunc(apiCfg.getAllChirps))
 	api.Get("/chirps/{chirpId}", http.HandlerFunc(apiCfg.getChirpByID))
 	api.Post("/users", http.HandlerFunc(apiCfg.createUser))
+	api.Post("/login", http.HandlerFunc(apiCfg.logInUser))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 

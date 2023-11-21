@@ -134,6 +134,18 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_, exists, err := cfg.db.GetUserByEmail(params.Email)
+	if err != nil {
+		log.Printf("Error Checking if User Exists: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	if exists {
+		respondWithError(w, 400, "A user already exists with that Email")
+		return
+	}
+
 	createdUser, err := cfg.db.CreateUser(params.Email, params.Password)
 	if err != nil {
 		log.Printf("Error saving User to database: %v", err)
@@ -144,4 +156,35 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	respBody := createdUser
 
 	respondWithJson(w, 201, respBody)
+}
+
+func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	params := fullUser{}
+
+	err := decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding User Object: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	response, id, err := cfg.db.AuthenticateUser(params.Email, params.Password)
+	if err != nil {
+		log.Printf("Error authenticating user: %v", err)
+		w.WriteHeader(500)
+		return
+	}
+
+	if !response {
+		respondWithError(w, 401, "Invalid request")
+		return
+	}
+
+	respBody := database.User{
+		Email: params.Email,
+		Id:    id,
+	}
+
+	respondWithJson(w, 200, respBody)
 }

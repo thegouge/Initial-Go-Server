@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"sync"
 
@@ -84,7 +85,7 @@ func (db *DB) CreateUser(email string, password string) (User, error) {
 	}
 
 	nextId := db.lastUser + 1
-	hashword, err := bcrypt.GenerateFromPassword([]byte(password))
+	hashword, err := bcrypt.GenerateFromPassword([]byte(password), 0)
 	if err != nil {
 		return User{}, err
 	}
@@ -111,6 +112,43 @@ func (db *DB) CreateUser(email string, password string) (User, error) {
 	return userResponse, nil
 }
 
+func (db *DB) GetUserByEmail(email string) (AuthenticatedUser, bool, error) {
+	currentDB, err := db.loadDB()
+	if err != nil {
+		return AuthenticatedUser{}, false, err
+	}
+
+	matchingUser := AuthenticatedUser{}
+
+	for _, user := range currentDB.Users {
+		if user.Email == email {
+			matchingUser = user
+			break
+		}
+	}
+
+	if matchingUser.Id == 0 {
+		return AuthenticatedUser{}, false, nil
+	}
+
+	return matchingUser, true, nil
+}
+
+// AuthenticateUser checks to see if the email and password match the one on disk
+func (db *DB) AuthenticateUser(email string, password string) (response bool, id int, err error) {
+	matchingUser, exists, err := db.GetUserByEmail(email)
+	if !exists {
+		return false, 0, errors.New("User does not exist")
+	}
+
+	validationError := bcrypt.CompareHashAndPassword(matchingUser.Password, []byte(password))
+	if validationError != nil {
+		return false, 0, nil
+	}
+
+	return true, matchingUser.Id, nil
+}
+
 // GetChirps returns all chirps in the database
 func (db *DB) GetChirps() ([]Chirp, error) {
 	currentStructure, err := db.loadDB()
@@ -131,7 +169,7 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 func (db *DB) ensureDB(path string) error {
 	dbContents := DBStructure{
 		Chirps: map[int]Chirp{},
-		Users:  map[int]User{},
+		Users:  map[int]AuthenticatedUser{},
 	}
 	dat, err := json.Marshal(dbContents)
 	if err != nil {
