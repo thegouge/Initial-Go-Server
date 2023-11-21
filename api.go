@@ -118,22 +118,23 @@ func (cfg *apiConfig) getChirpByID(w http.ResponseWriter, r *http.Request) {
 	respondWithError(w, 404, fmt.Sprintf("Unable to find chirp with ID: %s", param))
 }
 
-func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
-	type validationParams struct {
-		Email string `json:"email"`
-	}
+type fullUser struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
 
+func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
-	params := validationParams{}
+	params := fullUser{}
 
 	err := decoder.Decode(&params)
 	if err != nil {
-		log.Printf("Error decoding User Email: %v", err)
+		log.Printf("Error decoding User Object: %v", err)
 		w.WriteHeader(500)
 		return
 	}
 
-	createdUser, err := cfg.db.CreateUser(params.Email)
+	createdUser, err := cfg.db.CreateUser(params.Email, params.Password)
 	if err != nil {
 		log.Printf("Error saving User to database: %v", err)
 		w.WriteHeader(500)

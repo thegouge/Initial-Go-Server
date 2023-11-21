@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"sync"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type DB struct {
@@ -14,8 +16,8 @@ type DB struct {
 }
 
 type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
-	Users  map[int]User  `json:"users"`
+	Chirps map[int]Chirp             `json:"chirps"`
+	Users  map[int]AuthenticatedUser `json:"users"`
 }
 
 type Chirp struct {
@@ -26,6 +28,12 @@ type Chirp struct {
 type User struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
+}
+
+type AuthenticatedUser struct {
+	Id       int    `json:"id"`
+	Email    string `json:"email"`
+	Password []byte `json:"password"`
 }
 
 // NewDB creates a new database connection
@@ -68,18 +76,23 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	return newChirp, nil
 }
 
-// CreateChirp creates a new chirp and saves it to disk
-func (db *DB) CreateUser(email string) (User, error) {
+// CreateUser creates a new chirp User and saves it to disk
+func (db *DB) CreateUser(email string, password string) (User, error) {
 	currentStructure, err := db.loadDB()
 	if err != nil {
 		return User{}, err
 	}
 
 	nextId := db.lastUser + 1
+	hashword, err := bcrypt.GenerateFromPassword([]byte(password))
+	if err != nil {
+		return User{}, err
+	}
 
-	newUser := User{
-		Id:    nextId,
-		Email: email,
+	newUser := AuthenticatedUser{
+		Id:       nextId,
+		Email:    email,
+		Password: hashword,
 	}
 
 	currentStructure.Users[nextId] = newUser
@@ -89,7 +102,13 @@ func (db *DB) CreateUser(email string) (User, error) {
 	}
 
 	db.lastUser = nextId
-	return newUser, nil
+
+	userResponse := User{
+		Id:    newUser.Id,
+		Email: newUser.Email,
+	}
+
+	return userResponse, nil
 }
 
 // GetChirps returns all chirps in the database
