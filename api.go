@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/thegouge/Initial-Go-Server/internal/database"
@@ -15,6 +16,7 @@ import (
 type apiConfig struct {
 	fileserverHits int
 	db             *database.DB
+	secret         string
 }
 
 func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, Request *http.Request) {
@@ -119,8 +121,9 @@ func (cfg *apiConfig) getChirpByID(w http.ResponseWriter, r *http.Request) {
 }
 
 type fullUser struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
 }
 
 func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +172,9 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, id, err := cfg.db.AuthenticateUser(params.Email, params.Password)
+	fmt.Println(params.ExpiresInSeconds)
+
+	response, authUser, err := cfg.db.AuthenticateUser(params.Email, params.Password, params.ExpiresInSeconds, cfg.secret)
 	if err != nil {
 		log.Printf("Error authenticating user: %v", err)
 		w.WriteHeader(500)
@@ -183,8 +188,51 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 
 	respBody := database.User{
 		Email: params.Email,
-		Id:    id,
+		Id:    authUser.Id,
+		Token: authUser.Token,
 	}
 
 	respondWithJson(w, 200, respBody)
+}
+
+type editedUserResponse struct {
+	Email string `json:"email"`
+}
+
+func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Authorization")
+	bearerlessToken := strings.Split(auth, " ")[1]
+
+	authorized, err := cfg.db.VerifyJWT(bearerlessToken, cfg.secret)
+
+	if err != nil {
+		respondWithError(w, 401, "Invalid request")
+		return
+	}
+
+	if authorized != -1 {
+		decoder := json.NewDecoder(r.Body)
+		params := database.EditingUser{}
+		err := decoder.Decode(&params)
+
+		if err != nil {
+			respondWithError(w, 500, "something went wrong decoding the edit")
+			return
+		}
+
+		editedUser, err := cfg.db.EditUser(authorized, params)
+
+		if err != nil {
+			respondWithError(w, 500, "Something went wrong editing the user")
+			return
+		}
+
+		respondWithJson(w, 200, editedUserResponse{
+			Email: editedUser.Email,
+		})
+
+	} else {
+		println("Who da f**k are youse?")
+	}
+
 }

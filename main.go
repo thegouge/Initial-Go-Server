@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/joho/godotenv"
 	"github.com/thegouge/Initial-Go-Server/internal/database"
 )
 
@@ -32,8 +33,12 @@ func main() {
 		log.Fatal(dbErr)
 	}
 
+	godotenv.Load()
+	jwtSecret := os.Getenv("JWT_SECRET")
+
 	apiCfg := apiConfig{
-		db: db,
+		db:     db,
+		secret: jwtSecret,
 	}
 
 	r := chi.NewRouter()
@@ -49,6 +54,7 @@ func main() {
 	api.Get("/chirps", http.HandlerFunc(apiCfg.getAllChirps))
 	api.Get("/chirps/{chirpId}", http.HandlerFunc(apiCfg.getChirpByID))
 	api.Post("/users", http.HandlerFunc(apiCfg.createUser))
+	api.Put("/users", http.HandlerFunc(apiCfg.updateUser))
 	api.Post("/login", http.HandlerFunc(apiCfg.logInUser))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))

@@ -3,9 +3,13 @@ package database
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 	"sync"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,12 +33,18 @@ type Chirp struct {
 type User struct {
 	Id    int    `json:"id"`
 	Email string `json:"email"`
+	Token string `json:"token"`
 }
 
 type AuthenticatedUser struct {
 	Id       int    `json:"id"`
 	Email    string `json:"email"`
 	Password []byte `json:"password"`
+}
+
+type EditingUser struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 // NewDB creates a new database connection
@@ -112,6 +122,38 @@ func (db *DB) CreateUser(email string, password string) (User, error) {
 	return userResponse, nil
 }
 
+func (db *DB) EditUser(id int, newUserData EditingUser) (AuthenticatedUser, error) {
+	currentDB, err := db.loadDB()
+
+	if err != nil {
+		return AuthenticatedUser{}, err
+	}
+
+	databaseUser := currentDB.Users[id]
+	if newUserData.Password != "" {
+		hashword, err := bcrypt.GenerateFromPassword([]byte(newUserData.Password), 0)
+
+		if err != nil {
+			return AuthenticatedUser{}, err
+		}
+
+		databaseUser.Password = hashword
+	}
+	if newUserData.Email != "" {
+		databaseUser.Email = newUserData.Email
+	}
+
+	currentDB.Users[id] = databaseUser
+
+	err = db.writeDB(currentDB)
+
+	if err != nil {
+		return AuthenticatedUser{}, err
+	}
+
+	return databaseUser, nil
+}
+
 func (db *DB) GetUserByEmail(email string) (AuthenticatedUser, bool, error) {
 	currentDB, err := db.loadDB()
 	if err != nil {
@@ -134,19 +176,77 @@ func (db *DB) GetUserByEmail(email string) (AuthenticatedUser, bool, error) {
 	return matchingUser, true, nil
 }
 
+type AuthUserResponse struct {
+	Id    int
+	Token string
+}
+
 // AuthenticateUser checks to see if the email and password match the one on disk
-func (db *DB) AuthenticateUser(email string, password string) (response bool, id int, err error) {
+func (db *DB) AuthenticateUser(email string, password string, expires int, secret string) (bool, AuthUserResponse, error) {
+	userResponse := AuthUserResponse{
+		Id:    0,
+		Token: "",
+	}
 	matchingUser, exists, err := db.GetUserByEmail(email)
-	if !exists {
-		return false, 0, errors.New("User does not exist")
+	if err != nil || !exists {
+		return false, userResponse, errors.New("User does not exist")
 	}
 
 	validationError := bcrypt.CompareHashAndPassword(matchingUser.Password, []byte(password))
 	if validationError != nil {
-		return false, 0, nil
+		return false, userResponse, nil
 	}
 
-	return true, matchingUser.Id, nil
+	stringifiedId := fmt.Sprint(matchingUser.Id)
+
+	expirationDuration, _ := time.ParseDuration("24h")
+
+	claims := &jwt.RegisteredClaims{
+		Issuer:    "chirpy",
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expirationDuration)),
+		Subject:   stringifiedId,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := token.SignedString([]byte(secret))
+	if err != nil {
+		return false, userResponse, errors.New("Something went wrong with authentication")
+	}
+
+	return true, AuthUserResponse{Id: matchingUser.Id, Token: ss}, nil
+}
+
+func (db *DB) VerifyJWT(jwtToken string, secret string) (int, error) {
+	token, err := jwt.ParseWithClaims(
+		jwtToken,
+		&jwt.RegisteredClaims{},
+		func(token *jwt.Token) (interface{}, error) {
+			fmt.Println()
+			return []byte(secret), nil
+		})
+
+	if err != nil {
+		return -1, err
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+
+	if !ok {
+		return -1, errors.New("Couldn't parse claims")
+	}
+
+	subject, err := claims.GetSubject()
+	if err != nil {
+		return -1, err
+	}
+
+	userId, err := strconv.Atoi(subject)
+	if err != nil {
+		return -1, err
+	}
+
+	return userId, nil
 }
 
 // GetChirps returns all chirps in the database
