@@ -31,9 +31,8 @@ type Chirp struct {
 }
 
 type User struct {
-	Id    int    `json:"id"`
 	Email string `json:"email"`
-	Token string `json:"token"`
+	Id    int    `json:"id"`
 }
 
 type AuthenticatedUser struct {
@@ -201,6 +200,10 @@ func (db *DB) AuthenticateUser(email string, password string, expires int, secre
 
 	expirationDuration, _ := time.ParseDuration("24h")
 
+	if expires > 0 {
+		expirationDuration, _ = time.ParseDuration(fmt.Sprintf("%vs", expires))
+	}
+
 	claims := &jwt.RegisteredClaims{
 		Issuer:    "chirpy",
 		IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -234,6 +237,10 @@ func (db *DB) VerifyJWT(jwtToken string, secret string) (int, error) {
 
 	if !ok {
 		return -1, errors.New("Couldn't parse claims")
+	}
+
+	if claims.ExpiresAt.UTC().Unix() < time.Now().UTC().Unix() {
+		return -1, errors.New("JWT has expired")
 	}
 
 	subject, err := claims.GetSubject()

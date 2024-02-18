@@ -161,6 +161,12 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 	respondWithJson(w, 201, respBody)
 }
 
+type UserWithToken struct {
+	Email string `json:"email"`
+	Id    int    `json:"id"`
+	Token string `json:"token"`
+}
+
 func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := fullUser{}
@@ -171,8 +177,6 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 		return
 	}
-
-	fmt.Println(params.ExpiresInSeconds)
 
 	response, authUser, err := cfg.db.AuthenticateUser(params.Email, params.Password, params.ExpiresInSeconds, cfg.secret)
 	if err != nil {
@@ -186,7 +190,7 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	respBody := database.User{
+	respBody := UserWithToken{
 		Email: params.Email,
 		Id:    authUser.Id,
 		Token: authUser.Token,
@@ -197,6 +201,7 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 
 type editedUserResponse struct {
 	Email string `json:"email"`
+	Id    int    `json:"id"`
 }
 
 func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
@@ -229,6 +234,7 @@ func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 
 		respondWithJson(w, 200, editedUserResponse{
 			Email: editedUser.Email,
+			Id:    authorized,
 		})
 
 	} else {
