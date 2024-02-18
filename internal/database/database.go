@@ -225,7 +225,6 @@ func (db *DB) VerifyJWT(jwtToken string, secret string) (int, error) {
 		jwtToken,
 		&jwt.RegisteredClaims{},
 		func(token *jwt.Token) (interface{}, error) {
-			fmt.Println()
 			return []byte(secret), nil
 		})
 
