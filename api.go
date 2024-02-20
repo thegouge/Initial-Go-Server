@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -57,8 +56,7 @@ func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Requ
 
 	err := decoder.Decode(&params)
 	if err != nil {
-		log.Printf("Error decoding Chirp: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error decoding Chirp: %v", err))
 		return
 	}
 
@@ -69,8 +67,7 @@ func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Requ
 
 	createdChirp, err := cfg.db.CreateChirp(cleanString(params.Body))
 	if err != nil {
-		log.Printf("Error saving Chirp to database: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error saving Chirp to database: %v", err))
 		return
 	}
 
@@ -82,8 +79,7 @@ func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Requ
 func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 	chirps, err := cfg.db.GetChirps()
 	if err != nil {
-		log.Printf("Error reading the database: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error reading the database: %v", err))
 		return
 	}
 
@@ -98,15 +94,13 @@ func (cfg *apiConfig) getChirpByID(w http.ResponseWriter, r *http.Request) {
 	param := chi.URLParam(r, "chirpId")
 	chirpID, err := strconv.Atoi(param)
 	if err != nil {
-		log.Printf("Error parsing parameter: %v", err)
-		respondWithError(w, 400, "invalid chirp ID")
+		respondWithError(w, 400, fmt.Sprintf("Error parsing parameter: %v", err))
 		return
 	}
 
 	allChirps, err := cfg.db.GetChirps()
 	if err != nil {
-		log.Printf("Error reading the database: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error reading the database: %v", err))
 		return
 	}
 
@@ -132,15 +126,13 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&params)
 	if err != nil {
-		log.Printf("Error decoding User Object: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error decoding User Object: %v", err))
 		return
 	}
 
 	_, exists, err := cfg.db.GetUserByEmail(params.Email)
 	if err != nil {
-		log.Printf("Error Checking if User Exists: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error Checking if User Exists: %v", err))
 		return
 	}
 
@@ -151,8 +143,7 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 
 	createdUser, err := cfg.db.CreateUser(params.Email, params.Password)
 	if err != nil {
-		log.Printf("Error saving User to database: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error saving User to database: %v", err))
 		return
 	}
 
@@ -162,9 +153,10 @@ func (cfg *apiConfig) createUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type UserWithToken struct {
-	Email string `json:"email"`
-	Id    int    `json:"id"`
-	Token string `json:"token"`
+	Email        string `json:"email"`
+	Id           int    `json:"id"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
@@ -173,15 +165,13 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&params)
 	if err != nil {
-		log.Printf("Error decoding User Object: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error decoding User Object: %v", err))
 		return
 	}
 
-	response, authUser, err := cfg.db.AuthenticateUser(params.Email, params.Password, params.ExpiresInSeconds, cfg.secret)
+	response, authUser, err := cfg.db.AuthenticateUser(params.Email, params.Password, cfg.secret)
 	if err != nil {
-		log.Printf("Error authenticating user: %v", err)
-		w.WriteHeader(500)
+		respondWithError(w, 500, fmt.Sprintf("Error authenticating user: %v\n", err))
 		return
 	}
 
@@ -191,9 +181,10 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respBody := UserWithToken{
-		Email: params.Email,
-		Id:    authUser.Id,
-		Token: authUser.Token,
+		Email:        params.Email,
+		Id:           authUser.Id,
+		Token:        authUser.Token,
+		RefreshToken: authUser.RefreshToken,
 	}
 
 	respondWithJson(w, 200, respBody)
@@ -208,7 +199,7 @@ func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	bearerlessToken := strings.Split(auth, " ")[1]
 
-	authorized, err := cfg.db.VerifyJWT(bearerlessToken, cfg.secret)
+	authorized, err := cfg.db.VerifyAccessToken(bearerlessToken, cfg.secret)
 
 	if err != nil {
 		respondWithError(w, 401, "Invalid request")
@@ -238,7 +229,42 @@ func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 		})
 
 	} else {
-		println("Who da f**k are youse?")
+		respondWithError(w, 401, "invalid access token")
 	}
 
+}
+
+type tokenResponse struct {
+	Token string `json:"token"`
+}
+
+func (cfg *apiConfig) refreshUserToken(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Authorization")
+	bearerlessToken := strings.Split(auth, " ")[1]
+
+	newAccessToken, err := cfg.db.VerifyRefreshToken(bearerlessToken, cfg.secret)
+
+	if err != nil {
+		respondWithError(w, 401, "Refresh Token invalid")
+		return
+	}
+
+	respBody := tokenResponse{
+		Token: newAccessToken,
+	}
+
+	respondWithJson(w, 200, respBody)
+
+}
+
+func (cfg *apiConfig) revokeUserToken(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Authorization")
+	bearerlessToken := strings.Split(auth, " ")[1]
+
+	err := cfg.db.RevokeRefreshToken(bearerlessToken)
+	if err != nil {
+		respondWithError(w, 500, "Something has gone wrong revoking token")
+	} else {
+		respondWithJson(w, 200, nil)
+	}
 }

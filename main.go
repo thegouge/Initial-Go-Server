@@ -56,6 +56,8 @@ func main() {
 	api.Post("/users", http.HandlerFunc(apiCfg.createUser))
 	api.Put("/users", http.HandlerFunc(apiCfg.updateUser))
 	api.Post("/login", http.HandlerFunc(apiCfg.logInUser))
+	api.Post("/refresh", http.HandlerFunc(apiCfg.refreshUserToken))
+	api.Post("/revoke", http.HandlerFunc(apiCfg.revokeUserToken))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 

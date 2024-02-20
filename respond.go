@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -15,6 +16,7 @@ func respondWithError(w http.ResponseWriter, code int, msg string) {
 		Error: msg,
 	}
 
+	fmt.Println(msg)
 	respondWithJson(w, code, responseStruct)
 }
 
@@ -25,7 +27,11 @@ func respondWithJson(w http.ResponseWriter, code int, payload interface{}) {
 		w.WriteHeader(500)
 		return
 	}
+
+	if code != 200 {
+		w.WriteHeader(code)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(code)
 	w.Write(dat)
 }

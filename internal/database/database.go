@@ -21,8 +21,9 @@ type DB struct {
 }
 
 type DBStructure struct {
-	Chirps map[int]Chirp             `json:"chirps"`
-	Users  map[int]AuthenticatedUser `json:"users"`
+	Chirps        map[int]Chirp             `json:"chirps"`
+	Users         map[int]AuthenticatedUser `json:"users"`
+	RevokedTokens map[string]RevokedToken   `json:"revoked_tokens"`
 }
 
 type Chirp struct {
@@ -41,10 +42,18 @@ type AuthenticatedUser struct {
 	Password []byte `json:"password"`
 }
 
+type RevokedToken struct {
+	Value string `json:"value"`
+	Time  string `json:"time"`
+}
+
 type EditingUser struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+
+const ACCESS_ISSUER = "chirpy-access"
+const REFRESH_ISSUER = "chirpy-refresh"
 
 // NewDB creates a new database connection
 // and creates the database file if it doesn't exist
@@ -176,12 +185,34 @@ func (db *DB) GetUserByEmail(email string) (AuthenticatedUser, bool, error) {
 }
 
 type AuthUserResponse struct {
-	Id    int
-	Token string
+	Id           int
+	Token        string
+	RefreshToken string
+}
+
+func createJWT(expiration string, secret string, id string, keyType string) (string, error) {
+	expirationDuration, _ := time.ParseDuration(expiration)
+
+	claims := &jwt.RegisteredClaims{
+		Issuer:    keyType,
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expirationDuration)),
+		Subject:   id,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	signedString, err := token.SignedString([]byte(secret))
+
+	if err != nil {
+		return "", err
+	}
+
+	return signedString, nil
 }
 
 // AuthenticateUser checks to see if the email and password match the one on disk
-func (db *DB) AuthenticateUser(email string, password string, expires int, secret string) (bool, AuthUserResponse, error) {
+func (db *DB) AuthenticateUser(email string, password string, secret string) (bool, AuthUserResponse, error) {
 	userResponse := AuthUserResponse{
 		Id:    0,
 		Token: "",
@@ -198,29 +229,20 @@ func (db *DB) AuthenticateUser(email string, password string, expires int, secre
 
 	stringifiedId := fmt.Sprint(matchingUser.Id)
 
-	expirationDuration, _ := time.ParseDuration("24h")
-
-	if expires > 0 {
-		expirationDuration, _ = time.ParseDuration(fmt.Sprintf("%vs", expires))
-	}
-
-	claims := &jwt.RegisteredClaims{
-		Issuer:    "chirpy",
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(expirationDuration)),
-		Subject:   stringifiedId,
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	ss, err := token.SignedString([]byte(secret))
+	accessToken, err := createJWT("1h", secret, stringifiedId, ACCESS_ISSUER)
 	if err != nil {
-		return false, userResponse, errors.New("Something went wrong with authentication")
+		return false, userResponse, err
 	}
 
-	return true, AuthUserResponse{Id: matchingUser.Id, Token: ss}, nil
+	refreshToken, err := createJWT("1440h", secret, stringifiedId, REFRESH_ISSUER)
+	if err != nil {
+		return false, userResponse, err
+	}
+
+	return true, AuthUserResponse{Id: matchingUser.Id, Token: accessToken, RefreshToken: refreshToken}, nil
 }
 
-func (db *DB) VerifyJWT(jwtToken string, secret string) (int, error) {
+func (db *DB) VerifyAccessToken(jwtToken string, secret string) (int, error) {
 	token, err := jwt.ParseWithClaims(
 		jwtToken,
 		&jwt.RegisteredClaims{},
@@ -233,9 +255,12 @@ func (db *DB) VerifyJWT(jwtToken string, secret string) (int, error) {
 	}
 
 	claims, ok := token.Claims.(*jwt.RegisteredClaims)
-
 	if !ok {
 		return -1, errors.New("Couldn't parse claims")
+	}
+
+	if claims.Issuer != ACCESS_ISSUER {
+		return -1, errors.New("Token is not an access token")
 	}
 
 	if claims.ExpiresAt.UTC().Unix() < time.Now().UTC().Unix() {
@@ -253,6 +278,71 @@ func (db *DB) VerifyJWT(jwtToken string, secret string) (int, error) {
 	}
 
 	return userId, nil
+}
+
+func (db *DB) VerifyRefreshToken(jwtToken string, secret string) (string, error) {
+	token, err := jwt.ParseWithClaims(jwtToken, &jwt.RegisteredClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(*jwt.RegisteredClaims)
+	if !ok {
+		return "", errors.New("Couldn't parse claims")
+	}
+
+	if claims.Issuer != REFRESH_ISSUER {
+		return "", errors.New("Token is not a refresh token")
+	}
+
+	if claims.ExpiresAt.UTC().Unix() < time.Now().UTC().Unix() {
+		return "", errors.New("JWT has expired")
+	}
+
+	currentDB, err := db.loadDB()
+	if err != nil {
+		return "", errors.New("Something went wrong")
+	}
+
+	_, isRevoked := currentDB.RevokedTokens[jwtToken]
+	if isRevoked {
+		return "", errors.New("Token is revoked")
+	}
+
+	subject, err := claims.GetSubject()
+	if err != nil {
+		return "", err
+	}
+
+	newAccessToken, err := createJWT("1h", secret, subject, ACCESS_ISSUER)
+
+	if err != nil {
+		return "", err
+	}
+
+	return newAccessToken, nil
+}
+
+func (db *DB) RevokeRefreshToken(jwtToken string) error {
+	currentDB, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+
+	currentDB.RevokedTokens[jwtToken] = RevokedToken{
+		Value: jwtToken,
+		Time:  time.Now().UTC().Format("StampMilli"),
+	}
+
+	err = db.writeDB(currentDB)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetChirps returns all chirps in the database
@@ -274,8 +364,9 @@ func (db *DB) GetChirps() ([]Chirp, error) {
 // ensureDB creates a new database file if it doesn't exist
 func (db *DB) ensureDB(path string) error {
 	dbContents := DBStructure{
-		Chirps: map[int]Chirp{},
-		Users:  map[int]AuthenticatedUser{},
+		Chirps:        map[int]Chirp{},
+		Users:         map[int]AuthenticatedUser{},
+		RevokedTokens: map[string]RevokedToken{},
 	}
 	dat, err := json.Marshal(dbContents)
 	if err != nil {
