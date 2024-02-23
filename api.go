@@ -51,6 +51,14 @@ func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Requ
 		Body string `json:"body"`
 	}
 
+	auth := r.Header.Get("Authorization")
+
+	if auth == "" {
+		respondWithError(w, 401, "You need to be logged in to chirp!")
+	}
+
+	bearerlessToken := strings.Split(auth, " ")[1]
+
 	decoder := json.NewDecoder(r.Body)
 	params := validationParams{}
 
@@ -65,7 +73,13 @@ func (cfg *apiConfig) chirpValidationHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	createdChirp, err := cfg.db.CreateChirp(cleanString(params.Body))
+	id, err := cfg.db.VerifyAccessToken(bearerlessToken, cfg.secret)
+
+	if id == -1 || err != nil {
+		respondWithError(w, 401, "Something went wrong authenticating user")
+	}
+
+	createdChirp, err := cfg.db.CreateChirp(cleanString(params.Body), id)
 	if err != nil {
 		respondWithError(w, 500, fmt.Sprintf("Error saving Chirp to database: %v", err))
 		return
@@ -197,6 +211,11 @@ type editedUserResponse struct {
 
 func (cfg *apiConfig) updateUser(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Authorization")
+
+	if auth == "" {
+		respondWithError(w, 401, "You need to be logged in to edit a user!")
+	}
+
 	bearerlessToken := strings.Split(auth, " ")[1]
 
 	authorized, err := cfg.db.VerifyAccessToken(bearerlessToken, cfg.secret)
