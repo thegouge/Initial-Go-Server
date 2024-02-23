@@ -287,3 +287,30 @@ func (cfg *apiConfig) revokeUserToken(w http.ResponseWriter, r *http.Request) {
 		respondWithJson(w, 200, nil)
 	}
 }
+
+func (cfg *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Authorization")
+
+	if auth == "" {
+		respondWithError(w, 401, "You need to be logged in to delete a chirp!")
+		return
+	}
+
+	bearerlessToken := strings.Split(auth, " ")[1]
+	param := chi.URLParam(r, "chirpId")
+	chirpID, err := strconv.Atoi(param)
+
+	if err != nil {
+		respondWithError(w, 400, "You need to put in a chirp id!")
+		return
+	}
+
+	err = cfg.db.DeleteChirp(bearerlessToken, cfg.secret, chirpID)
+
+	if err != nil {
+		respondWithError(w, 403, "You are not authorized to delete that chirp")
+		return
+	}
+
+	respondWithJson(w, 200, nil)
+}

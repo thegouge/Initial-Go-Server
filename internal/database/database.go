@@ -420,3 +420,33 @@ func (db *DB) writeDB(dbStructure DBStructure) error {
 
 	return nil
 }
+
+func (db *DB) DeleteChirp(token string, secret string, id int) error {
+	currentDB, err := db.loadDB()
+
+	if err != nil {
+		return err
+	}
+
+	tokenUserId, err := db.VerifyAccessToken(token, secret)
+
+	if err != nil {
+		return err
+	}
+
+	chirpAuthorId := currentDB.Chirps[id].AuthorId
+
+	if chirpAuthorId != tokenUserId {
+		return errors.New("Wrong User!")
+	}
+
+	delete(currentDB.Chirps, id)
+
+	err = db.writeDB(currentDB)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

@@ -58,6 +58,7 @@ func main() {
 	api.Post("/login", http.HandlerFunc(apiCfg.logInUser))
 	api.Post("/refresh", http.HandlerFunc(apiCfg.refreshUserToken))
 	api.Post("/revoke", http.HandlerFunc(apiCfg.revokeUserToken))
+	api.Delete("/chirps/{chirpId}", http.HandlerFunc(apiCfg.deleteChirp))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 
