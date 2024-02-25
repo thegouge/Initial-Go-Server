@@ -35,10 +35,12 @@ func main() {
 
 	godotenv.Load()
 	jwtSecret := os.Getenv("JWT_SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
 
 	apiCfg := apiConfig{
-		db:     db,
-		secret: jwtSecret,
+		db:       db,
+		secret:   jwtSecret,
+		polkaKey: polkaKey,
 	}
 
 	r := chi.NewRouter()

@@ -326,6 +326,20 @@ type polkaEvent struct {
 }
 
 func (cfg *apiConfig) handlePayment(w http.ResponseWriter, r *http.Request) {
+	auth := r.Header.Get("Authorization")
+
+	if auth == "" {
+		respondWithError(w, 401, "You need to have proper authorization to pay for chirpy red")
+		return
+	}
+
+	rawToken := strings.Split(auth, " ")[1]
+
+	if rawToken != cfg.polkaKey {
+		respondWithError(w, 401, "Invalid Polka Token")
+		return
+	}
+
 	decoder := json.NewDecoder(r.Body)
 	params := polkaEvent{}
 
