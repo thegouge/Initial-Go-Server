@@ -102,6 +102,24 @@ func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 		return chirps[i].Id < chirps[j].Id
 	})
 
+	stringAuthor := r.URL.Query().Get("author_id")
+
+	if stringAuthor != "" {
+		authorId, err := strconv.Atoi(r.URL.Query().Get("author_id"))
+
+		if err != nil {
+			respondWithJson(w, 400, "invalid author id")
+		}
+
+		filtered := make([]database.Chirp, 0)
+		for _, val := range chirps {
+			if val.AuthorId == authorId {
+				filtered = append(filtered, val)
+			}
+		}
+		chirps = filtered
+	}
+
 	respondWithJson(w, 200, chirps)
 }
 
