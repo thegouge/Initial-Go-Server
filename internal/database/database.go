@@ -33,14 +33,16 @@ type Chirp struct {
 }
 
 type User struct {
-	Email string `json:"email"`
-	Id    int    `json:"id"`
+	Email       string `json:"email"`
+	Id          int    `json:"id"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type AuthenticatedUser struct {
-	Id       int    `json:"id"`
-	Email    string `json:"email"`
-	Password []byte `json:"password"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	Password    []byte `json:"password"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 type RevokedToken struct {
@@ -125,8 +127,9 @@ func (db *DB) CreateUser(email string, password string) (User, error) {
 	db.lastUser = nextId
 
 	userResponse := User{
-		Id:    newUser.Id,
-		Email: newUser.Email,
+		Id:          newUser.Id,
+		Email:       newUser.Email,
+		IsChirpyRed: false,
 	}
 
 	return userResponse, nil
@@ -190,6 +193,7 @@ type AuthUserResponse struct {
 	Id           int
 	Token        string
 	RefreshToken string
+	IsChirpyRed  bool
 }
 
 func createJWT(expiration string, secret string, id string, keyType string) (string, error) {
@@ -241,7 +245,7 @@ func (db *DB) AuthenticateUser(email string, password string, secret string) (bo
 		return false, userResponse, err
 	}
 
-	return true, AuthUserResponse{Id: matchingUser.Id, Token: accessToken, RefreshToken: refreshToken}, nil
+	return true, AuthUserResponse{Id: matchingUser.Id, Token: accessToken, RefreshToken: refreshToken, IsChirpyRed: matchingUser.IsChirpyRed}, nil
 }
 
 func (db *DB) VerifyAccessToken(jwtToken string, secret string) (int, error) {
@@ -447,6 +451,28 @@ func (db *DB) DeleteChirp(token string, secret string, id int) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (db *DB) UpgradeUser(userId int) error {
+	currentDB, err := db.loadDB()
+
+	if err != nil {
+		return err
+	}
+
+	userToUpgrade, ok := currentDB.Users[userId]
+
+	if !ok {
+		return errors.New("Could not find user")
+	}
+
+	userToUpgrade.IsChirpyRed = true
+
+	currentDB.Users[userId] = userToUpgrade
+
+	db.writeDB(currentDB)
 
 	return nil
 }

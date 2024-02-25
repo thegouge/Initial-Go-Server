@@ -59,6 +59,7 @@ func main() {
 	api.Post("/refresh", http.HandlerFunc(apiCfg.refreshUserToken))
 	api.Post("/revoke", http.HandlerFunc(apiCfg.revokeUserToken))
 	api.Delete("/chirps/{chirpId}", http.HandlerFunc(apiCfg.deleteChirp))
+	api.Post("/polka/webhooks", http.HandlerFunc(apiCfg.handlePayment))
 
 	admin.Get("/metrics", http.HandlerFunc(apiCfg.metricsHandler))
 

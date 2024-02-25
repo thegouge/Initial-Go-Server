@@ -16,6 +16,7 @@ type apiConfig struct {
 	fileserverHits int
 	db             *database.DB
 	secret         string
+	polkaKey       string
 }
 
 func (cfg *apiConfig) metricsHandler(w http.ResponseWriter, Request *http.Request) {
@@ -171,6 +172,7 @@ type UserWithToken struct {
 	Id           int    `json:"id"`
 	Token        string `json:"token"`
 	RefreshToken string `json:"refresh_token"`
+	IsChirpyRed  bool   `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
@@ -199,6 +201,7 @@ func (cfg *apiConfig) logInUser(w http.ResponseWriter, r *http.Request) {
 		Id:           authUser.Id,
 		Token:        authUser.Token,
 		RefreshToken: authUser.RefreshToken,
+		IsChirpyRed:  authUser.IsChirpyRed,
 	}
 
 	respondWithJson(w, 200, respBody)
@@ -309,6 +312,38 @@ func (cfg *apiConfig) deleteChirp(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		respondWithError(w, 403, "You are not authorized to delete that chirp")
+		return
+	}
+
+	respondWithJson(w, 200, nil)
+}
+
+type polkaEvent struct {
+	Event string `json:"event"`
+	Data  struct {
+		UserId int `json:"user_id"`
+	} `json:"data"`
+}
+
+func (cfg *apiConfig) handlePayment(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+	params := polkaEvent{}
+
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 400, "Something went wrong parsing request body")
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		respondWithJson(w, 200, nil)
+		return
+	}
+
+	err = cfg.db.UpgradeUser(params.Data.UserId)
+
+	if err != nil {
+		respondWithError(w, 404, "could not find user to upgrade")
 		return
 	}
 
