@@ -1,4 +1,4 @@
-module github.com/thegouge/Initial-Go-Server
+module github.com/thegouge/go-chirpy
 
 go 1.21.4
 

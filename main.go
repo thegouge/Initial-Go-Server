@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
-	"github.com/thegouge/Initial-Go-Server/internal/database"
+	"github.com/thegouge/go-chirpy/internal/database"
 )
 
 const PORT string = "8000"

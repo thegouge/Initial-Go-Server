@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/thegouge/Initial-Go-Server/internal/database"
+	"github.com/thegouge/go-chirpy/internal/database"
 )
 
 type apiConfig struct {
@@ -98,9 +98,17 @@ func (cfg *apiConfig) getAllChirps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sort.Slice(chirps, func(i, j int) bool {
-		return chirps[i].Id < chirps[j].Id
-	})
+	sortDir := r.URL.Query().Get("sort")
+
+	if sortDir == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].Id > chirps[j].Id
+		})
+	} else {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].Id < chirps[j].Id
+		})
+	}
 
 	stringAuthor := r.URL.Query().Get("author_id")
 
